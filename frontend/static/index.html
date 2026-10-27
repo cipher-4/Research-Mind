@@ -11,7 +11,7 @@
     <!-- Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="/static/styles.css">
+    <link rel="stylesheet" href="/static/styles.css?v=3.1">
     <!-- Marked.js (Markdown renderer) -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
@@ -41,17 +41,29 @@
             </div>
             
             <div class="sidebar-footer">
-                <span>LangGraph v0.2 · 4-agent</span>
-                <span class="version-badge">v2.0β</span>
+                <div class="sidebar-footer-meta">
+                    <span>LangGraph v0.2 · 4-agent</span>
+                    <span class="version-badge">v2.0β</span>
+                </div>
+                <div class="sidebar-footer-project">
+                    NGIT Alpha 8 (A8) Mini Project
+                </div>
             </div>
         </aside>
 
         <!-- MAIN LAYOUT -->
         <main class="main-content" id="main-content">
-            <!-- Sidebar Expand Button (visible only when sidebar is collapsed) -->
-            <button class="btn-sidebar-expand hidden" id="btn-sidebar-expand" title="Expand Sidebar">
-                <i class="fa-solid fa-chevron-right"></i>
-            </button>
+            <!-- TOP NAV / USER AUTH BAR -->
+            <header class="top-nav-bar">
+                <button class="btn-sidebar-expand hidden" id="btn-sidebar-expand" title="Expand Sidebar">
+                    <i class="fa-solid fa-chevron-right"></i>
+                </button>
+                <div class="nav-spacer"></div>
+                <div class="auth-nav-container" id="auth-nav-container">
+                    <button class="btn-nav-auth" id="btn-nav-login">Sign In</button>
+                    <button class="btn-nav-auth primary" id="btn-nav-register">Create Account</button>
+                </div>
+            </header>
 
             <!-- VIEW 1: SEARCH ENTRY PORTAL -->
             <section class="view-panel" id="view-search">
@@ -213,6 +225,143 @@
         </main>
     </div>
 
+    <!-- AUTHENTICATION MODAL -->
+    <div class="modal-overlay hidden" id="modal-auth">
+        <div class="modal-card auth-modal-card">
+            <button class="modal-close-btn" id="btn-close-auth-modal">&times;</button>
+            <div class="auth-tabs">
+                <button class="auth-tab-btn active" id="tab-login-btn">Sign In</button>
+                <button class="auth-tab-btn" id="tab-register-btn">Create Account</button>
+            </div>
+
+            <!-- Inline Error Banner -->
+            <div class="auth-error-banner hidden" id="auth-error-banner">
+                <i class="fa-solid fa-circle-exclamation"></i>
+                <span id="auth-error-text"></span>
+            </div>
+
+            <!-- Login Form -->
+            <form id="form-login" class="auth-form">
+                <div class="form-group">
+                    <label for="login-email">Email Address</label>
+                    <input type="email" id="login-email" placeholder="name@example.com" required autocomplete="username">
+                </div>
+                <div class="form-group">
+                    <label for="login-password">Password</label>
+                    <input type="password" id="login-password" placeholder="••••••••" required autocomplete="current-password">
+                </div>
+                <button type="submit" class="btn-primary auth-submit-btn" id="btn-submit-login">
+                    Sign In &nbsp;<i class="fa-solid fa-arrow-right"></i>
+                </button>
+            </form>
+
+            <!-- Register Form -->
+            <form id="form-register" class="auth-form hidden">
+                <div class="form-group">
+                    <label for="register-name">Full Name</label>
+                    <input type="text" id="register-name" placeholder="Dr. Jane Doe" required autocomplete="name">
+                </div>
+                <div class="form-group">
+                    <label for="register-email">Email Address</label>
+                    <input type="email" id="register-email" placeholder="name@example.com" required autocomplete="email">
+                </div>
+                <div class="form-group">
+                    <label for="register-password">Password (min. 6 characters)</label>
+                    <input type="password" id="register-password" placeholder="••••••••" minlength="6" required autocomplete="new-password">
+                </div>
+                <button type="submit" class="btn-primary auth-submit-btn" id="btn-submit-register">
+                    Create Account &nbsp;<i class="fa-solid fa-user-plus"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- ADMIN TELEMETRY & MANAGEMENT MODAL -->
+    <div class="modal-overlay hidden" id="modal-admin">
+        <div class="modal-card admin-modal-card">
+            <div class="admin-modal-header">
+                <div>
+                    <h2><i class="fa-solid fa-shield-halved"></i> Platform Telemetry & Administration</h2>
+                    <p class="admin-subtitle">PostgreSQL Multi-Tenant Analytics & User Management</p>
+                </div>
+                <button class="modal-close-btn" id="btn-close-admin-modal">&times;</button>
+            </div>
+
+            <!-- Metric Cards -->
+            <div class="admin-metrics-grid">
+                <div class="admin-metric-card">
+                    <div class="metric-icon users-icon"><i class="fa-solid fa-users"></i></div>
+                    <div class="metric-info">
+                        <span class="metric-value" id="admin-stat-users">0</span>
+                        <span class="metric-label">Registered Users</span>
+                    </div>
+                </div>
+                <div class="admin-metric-card">
+                    <div class="metric-icon sessions-icon"><i class="fa-solid fa-book-bookmark"></i></div>
+                    <div class="metric-info">
+                        <span class="metric-value" id="admin-stat-sessions">0</span>
+                        <span class="metric-label">Total Dossiers</span>
+                    </div>
+                </div>
+                <div class="admin-metric-card">
+                    <div class="metric-icon completed-icon"><i class="fa-solid fa-circle-check"></i></div>
+                    <div class="metric-info">
+                        <span class="metric-value" id="admin-stat-completed">0</span>
+                        <span class="metric-label">Completed Syntheses</span>
+                    </div>
+                </div>
+                <div class="admin-metric-card">
+                    <div class="metric-icon telemetry-icon"><i class="fa-solid fa-microchip"></i></div>
+                    <div class="metric-info">
+                        <span class="metric-value" id="admin-stat-findings">0</span>
+                        <span class="metric-label">Agent Findings Logged</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Admin Section Tabs -->
+            <div class="admin-tabs">
+                <button class="admin-tab-btn active" id="btn-admin-tab-users">User Directory</button>
+                <button class="admin-tab-btn" id="btn-admin-tab-sessions">Recent Platform Runs</button>
+            </div>
+
+            <!-- Admin Table Containers -->
+            <div class="admin-table-wrapper" id="admin-users-view">
+                <table class="admin-data-table">
+                    <thead>
+                        <tr>
+                            <th>User Name</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Status</th>
+                            <th>Dossiers Run</th>
+                            <th>Joined</th>
+                        </tr>
+                    </thead>
+                    <tbody id="admin-users-tbody">
+                        <tr><td colspan="6" class="table-loading">Loading users...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="admin-table-wrapper hidden" id="admin-sessions-view">
+                <table class="admin-data-table">
+                    <thead>
+                        <tr>
+                            <th>User</th>
+                            <th>Research Topic</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                        </tr>
+                    </thead>
+                    <tbody id="admin-sessions-tbody">
+                        <tr><td colspan="4" class="table-loading">Loading sessions...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
     <!-- Popup alert system -->
     <div class="toast-notification hidden" id="toast">
         <i id="toast-icon" class="fa-solid fa-circle-info"></i>
@@ -220,6 +369,6 @@
     </div>
 
     <!-- Main WebApp JS -->
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=3.2"></script>
 </body>
 </html>

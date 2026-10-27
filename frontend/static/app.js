@@ -4,6 +4,10 @@ let timerInterval = null;
 let activeReportContent = ""; // Stores raw markdown report
 let globalSourcesList = [];   // Stores unique sources found during search
 
+// Authentication State
+let authToken = localStorage.getItem("rm_token") || null;
+let currentUser = JSON.parse(localStorage.getItem("rm_user") || "null");
+
 // DOM Elements
 const sidebar = document.getElementById("sidebar");
 const appContainer = document.getElementById("app-container");
@@ -44,6 +48,18 @@ const toast = document.getElementById("toast");
 const toastIcon = document.getElementById("toast-icon");
 const toastMessage = document.getElementById("toast-message");
 
+// Auth & Admin Elements
+const authNavContainer = document.getElementById("auth-nav-container");
+const modalAuth = document.getElementById("modal-auth");
+const modalAdmin = document.getElementById("modal-admin");
+const btnCloseAuthModal = document.getElementById("btn-close-auth-modal");
+const btnCloseAdminModal = document.getElementById("btn-close-admin-modal");
+
+const tabLoginBtn = document.getElementById("tab-login-btn");
+const tabRegisterBtn = document.getElementById("tab-register-btn");
+const formLogin = document.getElementById("form-login");
+const formRegister = document.getElementById("form-register");
+
 // Graph node references (Planner, Arbitrator, Synthesizer)
 const nodes = {
     planner: document.getElementById("node-planner"),
@@ -55,9 +71,53 @@ const nodes = {
 //  INITIALIZATION & SIDEBAR CONTROL
 // ==========================================================================
 document.addEventListener("DOMContentLoaded", () => {
-    loadHistory();
     setupEventListeners();
+    setupAuthModalEvents();
+    setupAdminModalEvents();
+    renderAuthNav();
+
+    const path = window.location.pathname;
+    const urlParams = new URLSearchParams(window.location.search);
+
+    if (path === "/login") {
+        if (currentUser && authToken) {
+            window.location.replace("/app");
+            return;
+        }
+        // Unauthenticated visitor on /login: automatically open modal
+        if (urlParams.get("mode") === "signup") {
+            openAuthModal("register");
+        } else {
+            openAuthModal("login");
+        }
+    } else if (path === "/app") {
+        if (!currentUser || !authToken) {
+            window.location.replace("/login");
+            return;
+        }
+    }
+
+    switchView("search");
+    loadHistory();
+    refreshUserProfile();
 });
+
+async function refreshUserProfile() {
+    if (!authToken) return;
+    try {
+        const res = await fetch("/api/auth/me", {
+            headers: { "Authorization": `Bearer ${authToken}` }
+        });
+        if (res.ok) {
+            const data = await res.json();
+            currentUser = data;
+            localStorage.setItem("rm_user", JSON.stringify(currentUser));
+            renderAuthNav();
+        }
+    } catch (e) {
+        console.warn("Profile refresh error:", e);
+    }
+}
 
 function setupEventListeners() {
     // Sidebar Collapsing
@@ -71,21 +131,21 @@ function setupEventListeners() {
         btnSidebarExpand.classList.add("hidden");
     });
 
-    // Form submission starts the WebSocket research flow
-    searchForm.addEventListener("submit", (e) => {
+    // Form submission — validate first, then start research if valid
+    searchForm.addEventListener("submit", async (e) => {
         e.preventDefault();
         const query = searchInput.value.trim();
         if (query) {
-            startResearch(query);
+            await validateAndStart(query);
         }
     });
 
-    // Clicking sample suggestions populates search and submits
+    // Clicking sample suggestions populates search and validates
     document.querySelectorAll(".suggestion-chip").forEach(chip => {
-        chip.addEventListener("click", () => {
+        chip.addEventListener("click", async () => {
             const query = chip.getAttribute("data-query");
             searchInput.value = query;
-            startResearch(query);
+            await validateAndStart(query);
         });
     });
 
@@ -115,8 +175,475 @@ function setupEventListeners() {
     });
 }
 
-// Load previous reports from the FastAPI directory
+// ==========================================================================
+//  TOP NAV & AUTHENTICATION CONTROLS
+// ==========================================================================
+function renderAuthNav() {
+    if (!authNavContainer) return;
+
+    if (currentUser && authToken) {
+        const isAdmin = currentUser.role === "admin";
+        const name = currentUser.full_name || currentUser.email || "Researcher";
+        const initial = (name.charAt(0) || "U").toUpperCase();
+
+        authNavContainer.innerHTML = `
+            <div class="user-menu-wrapper" id="user-menu-wrapper">
+                <button class="user-profile-trigger" id="btn-user-profile" aria-expanded="false" title="Account Menu">
+                    <div class="user-avatar-initial">${initial}</div>
+                    <div class="user-trigger-info">
+                        <span class="user-trigger-name">${name}</span>
+                        <span class="role-tag ${currentUser.role}">${currentUser.role}</span>
+                    </div>
+                    <i class="fa-solid fa-chevron-down trigger-chevron"></i>
+                </button>
+                
+                <div class="user-dropdown-menu hidden" id="user-dropdown-menu">
+                    <div class="dropdown-header">
+                        <div class="dropdown-user-avatar">${initial}</div>
+                        <div class="dropdown-user-details">
+                            <span class="dropdown-user-name">${name}</span>
+                            <span class="dropdown-user-email">${currentUser.email}</span>
+                        </div>
+                    </div>
+                    <div class="dropdown-divider"></div>
+                    ${isAdmin ? `
+                    <button class="dropdown-item" id="dropdown-btn-admin">
+                        <i class="fa-solid fa-shield-halved"></i>
+                        <span>Admin Console</span>
+                    </button>
+                    <div class="dropdown-divider"></div>
+                    ` : ""}
+                    <button class="dropdown-item danger" id="dropdown-btn-logout">
+                        <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                        <span>Sign Out</span>
+                    </button>
+                </div>
+            </div>
+        `;
+
+        const btnTrigger = document.getElementById("btn-user-profile");
+        const dropdownMenu = document.getElementById("user-dropdown-menu");
+        const btnAdmin = document.getElementById("dropdown-btn-admin");
+        const btnLogout = document.getElementById("dropdown-btn-logout");
+
+        if (btnTrigger && dropdownMenu) {
+            btnTrigger.addEventListener("click", (e) => {
+                e.stopPropagation();
+                const isHidden = dropdownMenu.classList.contains("hidden");
+                dropdownMenu.classList.toggle("hidden");
+                btnTrigger.classList.toggle("active", isHidden);
+                btnTrigger.setAttribute("aria-expanded", isHidden ? "true" : "false");
+            });
+
+            // Dismiss menu on click outside
+            document.addEventListener("click", (e) => {
+                if (!dropdownMenu.contains(e.target) && !btnTrigger.contains(e.target)) {
+                    dropdownMenu.classList.add("hidden");
+                    btnTrigger.classList.remove("active");
+                    btnTrigger.setAttribute("aria-expanded", "false");
+                }
+            });
+        }
+
+        if (btnAdmin) {
+            btnAdmin.addEventListener("click", () => {
+                dropdownMenu.classList.add("hidden");
+                btnTrigger.classList.remove("active");
+                openAdminModal();
+            });
+        }
+
+        if (btnLogout) {
+            btnLogout.addEventListener("click", () => {
+                dropdownMenu.classList.add("hidden");
+                btnTrigger.classList.remove("active");
+                handleLogout();
+            });
+        }
+    } else {
+        authNavContainer.innerHTML = `
+            <button class="btn-nav-auth" id="btn-nav-login">Sign In</button>
+            <button class="btn-nav-auth primary" id="btn-nav-register">Create Account</button>
+        `;
+
+        document.getElementById("btn-nav-login").addEventListener("click", () => openAuthModal("login"));
+        document.getElementById("btn-nav-register").addEventListener("click", () => openAuthModal("register"));
+    }
+}
+
+function handleLogout() {
+    localStorage.removeItem("rm_token");
+    localStorage.removeItem("rm_user");
+    authToken = null;
+    currentUser = null;
+    showToast("info", "Signed out successfully.");
+    window.location.href = "/login";
+}
+
+function showAuthError(msg) {
+    const errorBanner = document.getElementById("auth-error-banner");
+    const errorText = document.getElementById("auth-error-text");
+    if (errorBanner && errorText) {
+        errorText.textContent = msg;
+        errorBanner.classList.remove("hidden");
+        // retrigger shake animation
+        errorBanner.style.animation = "none";
+        errorBanner.offsetHeight;
+        errorBanner.style.animation = "";
+    }
+}
+
+function clearAuthError() {
+    const errorBanner = document.getElementById("auth-error-banner");
+    if (errorBanner) {
+        errorBanner.classList.add("hidden");
+    }
+}
+
+function openAuthModal(defaultTab = "login") {
+    clearAuthError();
+    modalAuth.classList.remove("hidden", "closing");
+    if (defaultTab === "login") {
+        tabLoginBtn.classList.add("active");
+        tabRegisterBtn.classList.remove("active");
+        formLogin.classList.remove("hidden");
+        formRegister.classList.add("hidden");
+    } else {
+        tabLoginBtn.classList.remove("active");
+        tabRegisterBtn.classList.add("active");
+        formLogin.classList.add("hidden");
+        formRegister.classList.remove("hidden");
+    }
+}
+
+function closeAuthModalSmoothly(callback) {
+    if (!modalAuth || modalAuth.classList.contains("hidden")) {
+        if (callback) callback();
+        return;
+    }
+    modalAuth.classList.add("closing");
+    setTimeout(() => {
+        modalAuth.classList.remove("closing");
+        modalAuth.classList.add("hidden");
+        clearAuthError();
+        if (callback) callback();
+    }, 220);
+}
+
+function closeAuthModal() {
+    closeAuthModalSmoothly();
+}
+
+function setupAuthModalEvents() {
+    btnCloseAuthModal.addEventListener("click", closeAuthModal);
+    modalAuth.addEventListener("click", (e) => {
+        if (e.target === modalAuth) closeAuthModal();
+    });
+
+    // Clear error banner on tab switch
+    tabLoginBtn.addEventListener("click", () => {
+        clearAuthError();
+        tabLoginBtn.classList.add("active");
+        tabRegisterBtn.classList.remove("active");
+        formLogin.classList.remove("hidden");
+        formRegister.classList.add("hidden");
+    });
+
+    tabRegisterBtn.addEventListener("click", () => {
+        clearAuthError();
+        tabRegisterBtn.classList.add("active");
+        tabLoginBtn.classList.remove("active");
+        formRegister.classList.remove("hidden");
+        formLogin.classList.add("hidden");
+    });
+
+    // Clear error banner while typing
+    ["login-email", "login-password", "register-name", "register-email", "register-password"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener("input", clearAuthError);
+    });
+
+    // Login Form Submit
+    formLogin.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        clearAuthError();
+        const email = document.getElementById("login-email").value.trim();
+        const password = document.getElementById("login-password").value;
+        const btn = document.getElementById("btn-submit-login");
+
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Signing In...`;
+
+        try {
+            const res = await fetch("/api/auth/login", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email, password })
+            });
+
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || "Login failed");
+
+            // Smooth visual feedback on button
+            btn.innerHTML = `<i class="fa-solid fa-check"></i> Welcome back!`;
+            btn.style.background = "var(--success)";
+
+            authToken = data.token;
+            currentUser = data.user;
+            localStorage.setItem("rm_token", authToken);
+            localStorage.setItem("rm_user", JSON.stringify(currentUser));
+
+            renderAuthNav();
+            loadHistory();
+            switchView("search");
+
+            // Smoothly update browser URL without jarring full page reload
+            if (window.location.pathname === "/login") {
+                window.history.replaceState({}, "", "/app");
+            }
+
+            // Smooth animated modal dismiss
+            setTimeout(() => {
+                closeAuthModalSmoothly(() => {
+                    btn.disabled = false;
+                    btn.style.background = "";
+                    btn.innerHTML = `Sign In &nbsp;<i class="fa-solid fa-arrow-right"></i>`;
+                    showToast("success", `Welcome back, ${currentUser.full_name}!`);
+                });
+            }, 300);
+        } catch (err) {
+            btn.disabled = false;
+            btn.style.background = "";
+            btn.innerHTML = `Sign In &nbsp;<i class="fa-solid fa-arrow-right"></i>`;
+            showAuthError(err.message);
+            showToast("error", err.message);
+        }
+    });
+
+    // Register Form Submit
+    formRegister.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        clearAuthError();
+        const fullName = document.getElementById("register-name").value.trim();
+        const email = document.getElementById("register-email").value.trim();
+        const password = document.getElementById("register-password").value;
+        const btn = document.getElementById("btn-submit-register");
+
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Creating Account...`;
+
+        try {
+            const res = await fetch("/api/auth/register", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ full_name: fullName, email, password })
+            });
+
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || "Registration failed");
+
+            btn.innerHTML = `<i class="fa-solid fa-check"></i> Account Created!`;
+            btn.style.background = "var(--success)";
+
+            authToken = data.token;
+            currentUser = data.user;
+            localStorage.setItem("rm_token", authToken);
+            localStorage.setItem("rm_user", JSON.stringify(currentUser));
+
+            renderAuthNav();
+            loadHistory();
+            switchView("search");
+
+            // Smoothly update browser URL without jarring full page reload
+            if (window.location.pathname === "/login") {
+                window.history.replaceState({}, "", "/app");
+            }
+
+            setTimeout(() => {
+                closeAuthModalSmoothly(() => {
+                    btn.disabled = false;
+                    btn.style.background = "";
+                    btn.innerHTML = `Create Account &nbsp;<i class="fa-solid fa-user-plus"></i>`;
+                    showToast("success", `Account created! Welcome, ${currentUser.full_name}.`);
+                });
+            }, 300);
+        } catch (err) {
+            btn.disabled = false;
+            btn.style.background = "";
+            btn.innerHTML = `Create Account &nbsp;<i class="fa-solid fa-user-plus"></i>`;
+            showAuthError(err.message);
+            showToast("error", err.message);
+        }
+    });
+}
+
+function openAdminModal() {
+    modalAdmin.classList.remove("hidden");
+    loadAdminStats();
+    loadAdminUsers();
+}
+
+function closeAdminModal() {
+    modalAdmin.classList.add("hidden");
+}
+
+function setupAdminModalEvents() {
+    btnCloseAdminModal.addEventListener("click", closeAdminModal);
+    modalAdmin.addEventListener("click", (e) => {
+        if (e.target === modalAdmin) closeAdminModal();
+    });
+
+    const btnTabUsers = document.getElementById("btn-admin-tab-users");
+    const btnTabSessions = document.getElementById("btn-admin-tab-sessions");
+    const viewUsers = document.getElementById("admin-users-view");
+    const viewSessions = document.getElementById("admin-sessions-view");
+
+    btnTabUsers.addEventListener("click", () => {
+        btnTabUsers.classList.add("active");
+        btnTabSessions.classList.remove("active");
+        viewUsers.classList.remove("hidden");
+        viewSessions.classList.add("hidden");
+        loadAdminUsers();
+    });
+
+    btnTabSessions.addEventListener("click", () => {
+        btnTabSessions.classList.add("active");
+        btnTabUsers.classList.remove("active");
+        viewSessions.classList.remove("hidden");
+        viewUsers.classList.add("hidden");
+        loadAdminSessions();
+    });
+}
+
+async function loadAdminStats() {
+    if (!authToken) return;
+    try {
+        const res = await fetch("/api/admin/stats", {
+            headers: { "Authorization": `Bearer ${authToken}` }
+        });
+        if (!res.ok) return;
+        const stats = await res.json();
+
+        document.getElementById("admin-stat-users").textContent = stats.total_users;
+        document.getElementById("admin-stat-sessions").textContent = stats.total_sessions;
+        document.getElementById("admin-stat-completed").textContent = stats.completed_sessions;
+        document.getElementById("admin-stat-findings").textContent = stats.total_findings;
+    } catch (err) {
+        console.error("Error loading admin stats:", err);
+    }
+}
+
+async function loadAdminUsers() {
+    if (!authToken) return;
+    const tbody = document.getElementById("admin-users-tbody");
+    tbody.innerHTML = `<tr><td colspan="6" class="table-loading"><i class="fa-solid fa-circle-notch fa-spin"></i> Fetching users...</td></tr>`;
+
+    try {
+        const res = await fetch("/api/admin/users", {
+            headers: { "Authorization": `Bearer ${authToken}` }
+        });
+        if (!res.ok) throw new Error("Unauthorized");
+        const users = await res.json();
+
+        if (users.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:1rem;">No users found.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = "";
+        users.forEach(u => {
+            const tr = document.createElement("tr");
+            const dateStr = u.created_at ? new Date(u.created_at).toLocaleDateString() : "—";
+            tr.innerHTML = `
+                <td><strong>${u.full_name}</strong></td>
+                <td>${u.email}</td>
+                <td><span class="role-tag ${u.role}">${u.role}</span></td>
+                <td>${u.is_active ? '<span style="color:var(--accent);">Active</span>' : '<span style="color:var(--danger);">Inactive</span>'}</td>
+                <td>${u.session_count}</td>
+                <td>${dateStr}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--danger);padding:1rem;">Failed to load user directory.</td></tr>`;
+    }
+}
+
+async function loadAdminSessions() {
+    if (!authToken) return;
+    const tbody = document.getElementById("admin-sessions-tbody");
+    tbody.innerHTML = `<tr><td colspan="4" class="table-loading"><i class="fa-solid fa-circle-notch fa-spin"></i> Fetching platform sessions...</td></tr>`;
+
+    try {
+        const res = await fetch("/api/admin/sessions", {
+            headers: { "Authorization": `Bearer ${authToken}` }
+        });
+        if (!res.ok) throw new Error("Unauthorized");
+        const sessions = await res.json();
+
+        if (sessions.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:1rem;">No sessions recorded yet.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = "";
+        sessions.forEach(s => {
+            const tr = document.createElement("tr");
+            const dateStr = s.created_at ? new Date(s.created_at).toLocaleString() : "—";
+            tr.innerHTML = `
+                <td>${s.user_email}</td>
+                <td><strong>${s.topic}</strong></td>
+                <td><span class="role-tag ${s.status === 'completed' ? 'user' : 'admin'}">${s.status}</span></td>
+                <td>${dateStr}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--danger);padding:1rem;">Failed to load platform sessions.</td></tr>`;
+    }
+}
+
+// ==========================================================================
+//  POSTGRESQL & FILE RESEARCH HISTORY
+// ==========================================================================
 async function loadHistory() {
+    historyList.innerHTML = `<div class="history-loading"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading history...</div>`;
+
+    // 1. If user is logged in, load their PostgreSQL research dossiers
+    if (authToken && currentUser) {
+        try {
+            const response = await fetch("/api/user/sessions", {
+                headers: { "Authorization": `Bearer ${authToken}` }
+            });
+            if (response.ok) {
+                const sessions = await response.json();
+                if (sessions.length > 0) {
+                    historyList.innerHTML = "";
+                    sessions.forEach(s => {
+                        const date = s.created_at ? new Date(s.created_at).toLocaleDateString(undefined, {
+                            month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                        }) : "";
+                        const item = document.createElement("div");
+                        item.className = "history-item";
+                        item.innerHTML = `
+                            <div class="history-title" title="${s.topic}">${s.topic}</div>
+                            <div class="history-meta">
+                                <span>${date}</span>
+                                <span class="role-tag ${s.status === 'completed' ? 'user' : 'admin'}" style="font-size:0.65rem;">${s.status}</span>
+                            </div>
+                        `;
+                        item.addEventListener("click", () => loadPostgresSession(s.id));
+                        historyList.appendChild(item);
+                    });
+                    return;
+                }
+            }
+        } catch (err) {
+            console.warn("Could not load Postgres sessions, trying local files fallback:", err);
+        }
+    }
+
+    // 2. Fallback to /reports folder files
     try {
         const response = await fetch("/api/history");
         if (!response.ok) throw new Error("Failed to fetch history list");
@@ -157,6 +684,36 @@ async function loadHistory() {
     }
 }
 
+// Load a specific research session directly from PostgreSQL
+async function loadPostgresSession(sessionId) {
+    try {
+        const headers = authToken ? { "Authorization": `Bearer ${authToken}` } : {};
+        const response = await fetch(`/api/user/sessions/${sessionId}`, { headers });
+        if (!response.ok) throw new Error("Failed to load session from database");
+        
+        const data = await response.json();
+        activeReportContent = data.report || "No synthesized report was generated for this session.";
+        
+        // Also collect all verified sources from findings
+        globalSourcesList = [];
+        if (data.findings) {
+            data.findings.forEach(f => {
+                if (f.sources) {
+                    f.sources.forEach(url => {
+                        if (!globalSourcesList.includes(url)) globalSourcesList.push(url);
+                    });
+                }
+            });
+        }
+        
+        renderReport(activeReportContent);
+        switchView("result");
+        showToast("success", "Dossier loaded from PostgreSQL!");
+    } catch (error) {
+        showToast("error", "Error loading session: " + error.message);
+    }
+}
+
 // Fetch report content from API and display it
 async function loadSavedReport(filename) {
     try {
@@ -173,6 +730,51 @@ async function loadSavedReport(filename) {
         showToast("error", "Error loading report: " + error.message);
     }
 }
+
+// ==========================================================================
+//  INPUT VALIDATION GATE (calls /api/validate before pipeline)
+// ==========================================================================
+async function validateAndStart(query) {
+    // STRICT AUTH GATE: Must be logged in
+    if (!currentUser || !authToken) {
+        showToast("error", "Please sign in or create an account to start research.");
+        openAuthModal("login");
+        return;
+    }
+
+    // Disable the submit button and show a brief loading state
+    btnSubmit.disabled = true;
+    const originalBtnHTML = btnSubmit.innerHTML;
+    btnSubmit.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i>&nbsp; Validating...`;
+
+    try {
+        const response = await fetch("/api/validate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ query: query })
+        });
+
+        const result = await response.json();
+
+        if (result.is_valid) {
+            // Input is valid — proceed to the full pipeline
+            startResearch(query);
+        } else {
+            // Input is invalid — show warning toast, stay on search screen
+            showToast("error", result.reason || "Please enter a valid research topic.");
+        }
+    } catch (error) {
+        // If the validation endpoint itself fails, let the query through
+        // so we don't block users due to an infra issue
+        console.warn("Validation endpoint failed, proceeding anyway:", error);
+        startResearch(query);
+    } finally {
+        // Restore the submit button
+        btnSubmit.disabled = false;
+        btnSubmit.innerHTML = originalBtnHTML;
+    }
+}
+
 
 // ==========================================================================
 //  WEBSOCKET CONNECTION & RESEARCH FLOW
@@ -205,7 +807,10 @@ function startResearch(query) {
 
     wsConnection.onopen = () => {
         appendLog("system", `Connection opened. Triggering research agents...`);
-        wsConnection.send(JSON.stringify({ query: query }));
+        wsConnection.send(JSON.stringify({ 
+            query: query,
+            token: authToken 
+        }));
     };
 
     wsConnection.onmessage = (event) => {
