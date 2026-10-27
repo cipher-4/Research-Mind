@@ -97,7 +97,7 @@ def synthesize_all_results(user_query: str, results: List[ResearcherOutput]) -> 
     user_prompt = f"Main Topic: {user_query}\n\nSubquery Findings:\n{dossier_context}"
     
     try:
-        # Call Gemini (utilizes retry-after sleep logic and falls back to Groq Llama if needed)
+        # Call Gemini (utilizes retry-after sleep logic and falls back to Groq GPT-OSS if needed)
         report = call_gemini_llm(system_prompt=system_prompt, user_prompt=user_prompt, json_mode=False)
     except Exception as e:
         print(f"  [Synthesizer Error] Failed to generate master report: {e}")

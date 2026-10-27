@@ -15,9 +15,9 @@ Researcher Map:
   ┌──────────────┬────────────────────┬─────────────────────┬──────────────────┐
   │  Researcher  │  LLM              │  Search Strategy    │  Prompt Style    │
   ├──────────────┼────────────────────┼─────────────────────┼──────────────────┤
-  │  #1          │  Gemini 2.5 Flash  │  3 results, academic│  Balanced        │
-  │  #2          │  Groq (Llama 3.3)  │  3 results, academic│  Analytical      │
-  │  #3          │  Groq (Llama-8B)   │  5 results, academic│  Critical        │
+  │  #1          │  Gemini 2.5 Flash   │  3 results, academic│  Balanced        │
+  │  #2          │  Groq (GPT-OSS-120B)│  3 results, academic│  Analytical      │
+  │  #3          │  Groq (GPT-OSS-20B) │  5 results, academic│  Critical        │
   └──────────────┴────────────────────┴─────────────────────┴──────────────────┘
 """
 import json
@@ -79,16 +79,16 @@ def research_subquery_1(subquery: str, requires_quantitative: bool = False) -> R
 
 
 # ══════════════════════════════════════════════
-#  RESEARCHER 2 — Groq / Llama 3.3 (Analytical)
+#  RESEARCHER 2 — Groq / GPT-OSS 120B (Analytical)
 # ══════════════════════════════════════════════
 def research_subquery_2(subquery: str, requires_quantitative: bool = False) -> ResearcherOutput:
     """
-    Researcher_2: Uses Groq (Llama 3.3) + academic search + analytical prompt.
+    Researcher_2: Uses Groq (GPT-OSS 120B) + academic search + analytical prompt.
     This gives a DIFFERENT LLM's perspective on the same data.
     
     Why a different LLM?
       Different models have different reasoning biases and strengths.
-      Llama 3.3 may catch details that Gemini misses, and vice versa.
+      GPT-OSS 120B may catch details that Gemini misses, and vice versa.
       This diversity makes the Arbitrator's voting actually meaningful.
     """
     print(f"  [Researcher 2] Searching web for: '{subquery}'")
@@ -131,18 +131,18 @@ def research_subquery_2(subquery: str, requires_quantitative: bool = False) -> R
 
     user_prompt = f"Subquery: {subquery}\n\nContext:\n{context}"
 
-    print(f"  [Researcher 2] Asking Groq/Llama to analyse findings...")
+    print(f"  [Researcher 2] Asking Groq/GPT-OSS-120B to analyse findings...")
     raw_response = call_groq_llm(system_prompt=system_prompt, user_prompt=user_prompt)
 
     return _parse_response(raw_response, subquery, researcher_id=2, context=context)
 
 
 # ══════════════════════════════════════════════
-#  RESEARCHER 3 — Gemini 2.5 Flash (Critical + Deep Search)
+#  RESEARCHER 3 — Groq / GPT-OSS 20B (Critical + Deep Search)
 # ══════════════════════════════════════════════
 def research_subquery_3(subquery: str, requires_quantitative: bool = False) -> ResearcherOutput:
     """
-    Researcher_3: Uses Groq (Llama-3.1-8B) + DEEPER academic search (5 results) + critical prompt.
+    Researcher_3: Uses Groq (GPT-OSS 20B) + DEEPER academic search (5 results) + critical prompt.
     
     This researcher gets MORE data (5 results instead of 3)
     and is prompted to be critical — questioning claims, noting gaps,
@@ -188,8 +188,8 @@ def research_subquery_3(subquery: str, requires_quantitative: bool = False) -> R
 
     user_prompt = f"Subquery: {subquery}\n\nContext:\n{context}"
 
-    print(f"  [Researcher 3] Asking Groq/Llama-8B to critically evaluate findings...")
-    raw_response = call_groq_llm(system_prompt=system_prompt, user_prompt=user_prompt, model="llama-3.1-8b-instant")
+    print(f"  [Researcher 3] Asking Groq/GPT-OSS-20B to critically evaluate findings...")
+    raw_response = call_groq_llm(system_prompt=system_prompt, user_prompt=user_prompt, model="openai/gpt-oss-20b")
 
     return _parse_response(raw_response, subquery, researcher_id=3, context=context)
 

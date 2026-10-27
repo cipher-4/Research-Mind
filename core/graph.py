@@ -124,13 +124,13 @@ def researcher_node(state: GraphState) -> dict:
     result_1 = research_subquery_1(subquery, requires_quantitative=req_quant)
     publish_progress(state, "researcher_progress", f"Researcher 1 finished (Confidence: {result_1.confidence:.2f})", {"sources": result_1.sources})
 
-    print(f"\n  --- Researcher 2 (Groq / Analytical) ---")
-    publish_progress(state, "researcher_progress", "Researcher 2 (Groq / Llama-3.3) is searching and analyzing...")
+    print(f"\n  --- Researcher 2 (Groq / GPT-OSS-120B / Analytical) ---")
+    publish_progress(state, "researcher_progress", "Researcher 2 (Groq / GPT-OSS-120B) is searching and analyzing...")
     result_2 = research_subquery_2(subquery, requires_quantitative=req_quant)
     publish_progress(state, "researcher_progress", f"Researcher 2 finished (Confidence: {result_2.confidence:.2f})", {"sources": result_2.sources})
 
-    print(f"\n  --- Researcher 3 (Groq / Llama-8B / Critical) ---")
-    publish_progress(state, "researcher_progress", "Researcher 3 (Groq / Llama-8B) is deep searching and reviewing...")
+    print(f"\n  --- Researcher 3 (Groq / GPT-OSS-20B / Critical) ---")
+    publish_progress(state, "researcher_progress", "Researcher 3 (Groq / GPT-OSS-20B) is deep searching and reviewing...")
     result_3 = research_subquery_3(subquery, requires_quantitative=req_quant)
     publish_progress(state, "researcher_progress", f"Researcher 3 finished (Confidence: {result_3.confidence:.2f})", {"sources": result_3.sources})
 

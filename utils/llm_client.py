@@ -3,7 +3,7 @@ llm_client.py
 Centralised LLM interface for ResearchMind.
 
 We use TWO different models for different jobs:
-  • Groq  (Llama 3.3 70B)   → Planner agent  (fast, great at structured reasoning)
+  • Groq  (GPT-OSS 120B)     → Planner agent  (fast, great at structured reasoning)
   • Gemini (2.0 Flash)       → Researcher agent (1 M-token context window for large web results)
 
 Each function accepts a system prompt and user prompt and returns
@@ -11,18 +11,27 @@ the raw text string from the model's response.
 """
 import os
 import re
+import sys
 import time
 from groq import Groq
 from google import genai
+
+# Prevent UnicodeEncodeError on Windows terminals with non-UTF8 code pages
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except Exception:
+            pass
 
 
 # ──────────────────────────────────────────────
 # 1.  GROQ  –  Used by the Planner
 # ──────────────────────────────────────────────
-def call_groq_llm(system_prompt: str, user_prompt: str, model: str = "llama-3.3-70b-versatile", json_mode: bool = True) -> str:
+def call_groq_llm(system_prompt: str, user_prompt: str, model: str = "openai/gpt-oss-120b", json_mode: bool = True) -> str:
     """
-    Calls a model via Groq (defaults to Llama-3.3-70B).
-    Falls back to Llama-3.1-8B-instant if Llama-3.3 is exhausted or rate-limited.
+    Calls a model via Groq (defaults to GPT-OSS-120B).
+    Falls back to GPT-OSS-20B if GPT-OSS-120B is exhausted or rate-limited.
     """
     try:
         # The client automatically reads GROQ_API_KEY from the environment
@@ -43,10 +52,10 @@ def call_groq_llm(system_prompt: str, user_prompt: str, model: str = "llama-3.3-
         response = client.chat.completions.create(**kwargs)
         return response.choices[0].message.content
     except Exception as e:
-        # If Llama-3.3 is rate-limited or out of tokens, fall back to Llama-3.1-8B
-        if model == "llama-3.3-70b-versatile":
-            print(f"\n  ⚠️ [Groq Error] Llama-3.3 limit reached ({e}). Falling back to Llama-3.1-8B...")
-            return call_groq_llm(system_prompt, user_prompt, model="llama-3.1-8b-instant", json_mode=json_mode)
+        # If GPT-OSS-120B is rate-limited or out of tokens, fall back to GPT-OSS-20B
+        if model == "openai/gpt-oss-120b":
+            print(f"\n  ⚠️ [Groq Error] GPT-OSS-120B limit reached ({e}). Falling back to GPT-OSS-20B...")
+            return call_groq_llm(system_prompt, user_prompt, model="openai/gpt-oss-20b", json_mode=json_mode)
         else:
             raise e
 
@@ -88,14 +97,14 @@ def call_gemini_llm(system_prompt: str, user_prompt: str, json_mode: bool = True
                 delay = float(match.group(1))
             
             # Option 3 (Balanced Pacing): Only sleep and retry if the wait time is short (<= 10s)
-            # If the wait time is long, immediately fall back to Groq/Llama to avoid slowing the user down.
+            # If the wait time is long, immediately fall back to Groq/GPT-OSS to avoid slowing the user down.
             if delay <= 10.0 and retry_count < 1:
                 print(f"\n  ⚠️ [Gemini Rate Limit] Exceeded quota. Sleeping for {delay:.2f}s before retry 1/1...")
                 time.sleep(delay + 0.5)  # Add a small safety buffer
                 return call_gemini_llm(system_prompt, user_prompt, json_mode=json_mode, retry_count=retry_count + 1)
             else:
-                print(f"\n  ⚠️ [Gemini Rate Limit] Wait time is too long ({delay:.2f}s). Skipping wait and falling back to Groq/Llama...")
+                print(f"\n  ⚠️ [Gemini Rate Limit] Wait time is too long ({delay:.2f}s). Skipping wait and falling back to Groq/GPT-OSS...")
 
-        # For other errors, or if retries are exhausted/skipped, fall back to Groq/Llama
-        print(f"\n  ⚠️ [Gemini Error] Service unavailable ({error_msg}). Falling back to Groq/Llama...")
+        # For other errors, or if retries are exhausted/skipped, fall back to Groq/GPT-OSS
+        print(f"\n  ⚠️ [Gemini Error] Service unavailable ({error_msg}). Falling back to Groq/GPT-OSS...")
         return call_groq_llm(system_prompt, user_prompt, json_mode=json_mode)
