@@ -50,6 +50,12 @@ body {
     overflow-x: hidden;
     line-height: 1.6;
     -webkit-font-smoothing: antialiased;
+    opacity: 1;
+    transition: opacity 0.28s ease-out;
+}
+
+body.page-exit {
+    opacity: 0 !important;
 }
 
 /* Custom Scrollbars */
@@ -2074,5 +2080,273 @@ body {
 @keyframes scaleUp {
     from { transform: scale(0.96); opacity: 0; }
     to { transform: scale(1); opacity: 1; }
+}
+
+/* ==========================================================================
+   SIDEBAR NAVIGATION ACTIONS & DOWNLOADS LIBRARY VIEW
+   ========================================================================== */
+.sidebar-nav-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.8rem 1rem 0.5rem 1rem;
+}
+
+.btn-sidebar-nav {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    padding: 0.55rem 0.85rem;
+    font-family: var(--font-sans);
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    text-align: left;
+}
+
+.btn-sidebar-nav:hover {
+    background: rgba(0, 0, 0, 0.04);
+    color: var(--text-primary);
+}
+
+.btn-sidebar-nav.active {
+    background: var(--bg-main);
+    border-color: var(--border-color);
+    color: var(--primary);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+/* Downloads Page Styles */
+#view-downloads {
+    padding: 1.5rem 2.5rem 3rem 2.5rem;
+    max-width: 1200px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+.downloads-hero {
+    margin-bottom: 1.8rem;
+}
+
+.downloads-hero-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.2rem;
+    gap: 1rem;
+}
+
+.downloads-quick-search {
+    position: relative;
+    width: 320px;
+}
+
+.downloads-quick-search i {
+    position: absolute;
+    left: 0.9rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+.downloads-quick-search input {
+    width: 100%;
+    padding: 0.55rem 1rem 0.55rem 2.3rem;
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
+    border-radius: 20px;
+    font-family: var(--font-sans);
+    font-size: 0.84rem;
+    color: var(--text-primary);
+    outline: none;
+    transition: all var(--transition-fast);
+}
+
+.downloads-quick-search input:focus {
+    border-color: var(--primary);
+    background: #ffffff;
+    box-shadow: 0 0 0 3px var(--primary-glow);
+}
+
+.downloads-title {
+    font-family: var(--font-serif);
+    font-size: 2.2rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    line-height: 1.15;
+    margin-bottom: 0.35rem;
+}
+
+.downloads-subtitle {
+    font-size: 0.92rem;
+    color: var(--text-muted);
+}
+
+.downloads-stats-bar {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.2rem;
+    margin-bottom: 1.8rem;
+}
+
+.dl-stat-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.dl-stat-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    background: rgba(26, 79, 255, 0.1);
+    color: var(--primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.15rem;
+}
+
+.dl-stat-icon.completed {
+    background: rgba(15, 122, 85, 0.1);
+    color: var(--accent);
+}
+
+.dl-stat-icon.export {
+    background: rgba(184, 92, 0, 0.1);
+    color: var(--warning);
+}
+
+.dl-stat-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.dl-stat-num {
+    font-size: 1.45rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1.1;
+}
+
+.dl-stat-label {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.downloads-table-card {
+    background: var(--bg-main);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    box-shadow: var(--card-shadow);
+    overflow: hidden;
+}
+
+.downloads-table-wrapper {
+    overflow-x: auto;
+}
+
+.downloads-data-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+}
+
+.downloads-data-table th {
+    background: var(--bg-card);
+    padding: 0.85rem 1.25rem;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    font-weight: 700;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.downloads-data-table td {
+    padding: 1rem 1.25rem;
+    font-size: 0.88rem;
+    border-bottom: 1px solid var(--border-color);
+    vertical-align: middle;
+}
+
+.downloads-data-table tr:last-child td {
+    border-bottom: none;
+}
+
+.downloads-data-table tr:hover td {
+    background: rgba(0, 0, 0, 0.02);
+}
+
+.dossier-topic-title {
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.dl-action-btns {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+.btn-dl-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.4rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    font-family: var(--font-sans);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    text-decoration: none;
+}
+
+.btn-dl-action:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: #ffffff;
+}
+
+.btn-dl-action.primary {
+    background: rgba(26, 79, 255, 0.08);
+    color: var(--primary);
+    border-color: rgba(26, 79, 255, 0.3);
+}
+
+.btn-dl-action.primary:hover {
+    background: var(--primary);
+    color: #ffffff;
+}
+
+.btn-action-tool.primary {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+}
+
+.btn-action-tool.primary:hover {
+    background: #123bd4;
 }
 

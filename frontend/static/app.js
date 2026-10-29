@@ -20,6 +20,14 @@ const btnSidebarExpand = document.getElementById("btn-sidebar-expand");
 const viewSearch = document.getElementById("view-search");
 const viewRunning = document.getElementById("view-running");
 const viewResult = document.getElementById("view-result");
+const viewDownloads = document.getElementById("view-downloads");
+
+const btnSidebarNavSearch = document.getElementById("btn-sidebar-nav-search");
+const btnSidebarNavDownloads = document.getElementById("btn-sidebar-nav-downloads");
+const btnBackFromDownloads = document.getElementById("btn-back-from-downloads");
+const downloadsSearchInput = document.getElementById("downloads-search-input");
+const downloadsTbody = document.getElementById("downloads-tbody");
+const btnDownloadMd = document.getElementById("btn-download-md");
 
 const searchForm = document.getElementById("search-form");
 const searchInput = document.getElementById("search-input");
@@ -90,6 +98,15 @@ document.addEventListener("DOMContentLoaded", () => {
         } else {
             openAuthModal("login");
         }
+    } else if (path === "/downloads") {
+        if (!currentUser || !authToken) {
+            window.location.replace("/login");
+            return;
+        }
+        switchView("downloads");
+        loadHistory();
+        refreshUserProfile();
+        return;
     } else if (path === "/app") {
         if (!currentUser || !authToken) {
             window.location.replace("/login");
@@ -168,6 +185,38 @@ function setupEventListeners() {
         window.print();
     });
 
+    // Download Markdown File to PC
+    if (btnDownloadMd) {
+        btnDownloadMd.addEventListener("click", () => {
+            downloadCurrentReportMd();
+        });
+    }
+
+    // Sidebar View Navigation
+    if (btnSidebarNavSearch) {
+        btnSidebarNavSearch.addEventListener("click", () => {
+            switchView("search");
+        });
+    }
+
+    if (btnSidebarNavDownloads) {
+        btnSidebarNavDownloads.addEventListener("click", () => {
+            switchView("downloads");
+        });
+    }
+
+    if (btnBackFromDownloads) {
+        btnBackFromDownloads.addEventListener("click", () => {
+            switchView("search");
+        });
+    }
+
+    if (downloadsSearchInput) {
+        downloadsSearchInput.addEventListener("input", (e) => {
+            filterDownloadsList(e.target.value);
+        });
+    }
+
     // Toggle sources grid collapse
     reportSourcesTrigger.addEventListener("click", () => {
         reportSourcesTrigger.classList.toggle("open");
@@ -206,6 +255,11 @@ function renderAuthNav() {
                         </div>
                     </div>
                     <div class="dropdown-divider"></div>
+                    <button class="dropdown-item" id="dropdown-btn-downloads">
+                        <i class="fa-solid fa-box-archive"></i>
+                        <span>My Downloads &amp; Dossiers</span>
+                    </button>
+                    <div class="dropdown-divider"></div>
                     ${isAdmin ? `
                     <button class="dropdown-item" id="dropdown-btn-admin">
                         <i class="fa-solid fa-shield-halved"></i>
@@ -223,6 +277,7 @@ function renderAuthNav() {
 
         const btnTrigger = document.getElementById("btn-user-profile");
         const dropdownMenu = document.getElementById("user-dropdown-menu");
+        const btnDownloads = document.getElementById("dropdown-btn-downloads");
         const btnAdmin = document.getElementById("dropdown-btn-admin");
         const btnLogout = document.getElementById("dropdown-btn-logout");
 
@@ -242,6 +297,14 @@ function renderAuthNav() {
                     btnTrigger.classList.remove("active");
                     btnTrigger.setAttribute("aria-expanded", "false");
                 }
+            });
+        }
+
+        if (btnDownloads) {
+            btnDownloads.addEventListener("click", () => {
+                dropdownMenu.classList.add("hidden");
+                btnTrigger.classList.remove("active");
+                switchView("downloads");
             });
         }
 
@@ -276,8 +339,12 @@ function handleLogout() {
     localStorage.removeItem("rm_user");
     authToken = null;
     currentUser = null;
-    showToast("info", "Signed out successfully.");
-    window.location.href = "/login";
+
+    // Smooth page exit transition back to the public home page
+    document.body.classList.add("page-exit");
+    setTimeout(() => {
+        window.location.href = "/";
+    }, 260);
 }
 
 function showAuthError(msg) {
@@ -1136,20 +1203,203 @@ function extractAndBuildReportSources(markdown) {
 }
 
 // ==========================================================================
-//  UI UTILITY FUNCTIONS
+//  UI UTILITY FUNCTIONS & DOWNLOADS LIBRARY
 // ==========================================================================
+let userDossiersCache = [];
+
 function switchView(viewName) {
     viewSearch.classList.add("hidden");
     viewRunning.classList.add("hidden");
     viewResult.classList.add("hidden");
+    if (viewDownloads) viewDownloads.classList.add("hidden");
+
+    if (btnSidebarNavSearch) btnSidebarNavSearch.classList.remove("active");
+    if (btnSidebarNavDownloads) btnSidebarNavDownloads.classList.remove("active");
 
     if (viewName === "search") {
         viewSearch.classList.remove("hidden");
+        if (btnSidebarNavSearch) btnSidebarNavSearch.classList.add("active");
+        if (window.location.pathname === "/downloads") {
+            window.history.pushState({}, "", "/app");
+        }
     } else if (viewName === "running") {
         viewRunning.classList.remove("hidden");
     } else if (viewName === "result") {
         viewResult.classList.remove("hidden");
+    } else if (viewName === "downloads") {
+        if (viewDownloads) viewDownloads.classList.remove("hidden");
+        if (btnSidebarNavDownloads) btnSidebarNavDownloads.classList.add("active");
+        if (window.location.pathname !== "/downloads") {
+            window.history.pushState({}, "", "/downloads");
+        }
+        loadDownloadsPage();
     }
+}
+
+function downloadMarkdownBlob(filename, text) {
+    if (!text) {
+        showToast("error", "No report content available to download.");
+        return;
+    }
+    const cleanName = filename.replace(/[^a-zA-Z0-9_\-]/g, "_").substring(0, 50);
+    const blob = new Blob([text], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `ResearchDossier_${cleanName}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast("success", `Downloaded: ResearchDossier_${cleanName}.md`);
+}
+
+function downloadCurrentReportMd() {
+    if (!activeReportContent) {
+        showToast("error", "No active report loaded to download.");
+        return;
+    }
+    const titleMatch = activeReportContent.match(/^#\s+(.*)/m);
+    const title = titleMatch ? titleMatch[1] : "academic_synthesis";
+    downloadMarkdownBlob(title, activeReportContent);
+}
+
+async function downloadSessionById(sessionId, topic) {
+    showToast("info", "Preparing file download...");
+    try {
+        const res = await fetch(`/api/user/sessions/${sessionId}`, {
+            headers: authToken ? { "Authorization": `Bearer ${authToken}` } : {}
+        });
+        if (!res.ok) throw new Error("Failed to load dossier for download");
+        const data = await res.json();
+        if (!data.report) throw new Error("This dossier has not finished synthesizing yet.");
+        downloadMarkdownBlob(topic || data.topic, data.report);
+    } catch (err) {
+        showToast("error", err.message);
+    }
+}
+
+async function loadDownloadsPage() {
+    if (!downloadsTbody) return;
+    downloadsTbody.innerHTML = `<tr><td colspan="4" class="table-loading"><i class="fa-solid fa-circle-notch fa-spin"></i> Fetching your research dossiers...</td></tr>`;
+
+    if (!authToken || !currentUser) {
+        downloadsTbody.innerHTML = `<tr><td colspan="4" class="table-loading">Please sign in to view your downloads.</td></tr>`;
+        return;
+    }
+
+    try {
+        const response = await fetch("/api/user/sessions", {
+            headers: { "Authorization": `Bearer ${authToken}` }
+        });
+        if (!response.ok) throw new Error("Failed to fetch dossiers");
+        const sessions = await response.json();
+        userDossiersCache = sessions;
+
+        renderDownloadsTable(sessions);
+    } catch (err) {
+        downloadsTbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--danger);padding:2rem;">Failed to load research library.</td></tr>`;
+    }
+}
+
+function renderDownloadsTable(sessions) {
+    if (!downloadsTbody) return;
+
+    // Update stats cards
+    const dlCount = document.getElementById("dl-stat-count");
+    const dlCompleted = document.getElementById("dl-stat-completed");
+    const dlReady = document.getElementById("dl-stat-ready");
+
+    const total = sessions.length;
+    const completed = sessions.filter(s => s.status === "completed" || s.has_report).length;
+
+    if (dlCount) dlCount.textContent = total;
+    if (dlCompleted) dlCompleted.textContent = completed;
+    if (dlReady) dlReady.textContent = completed;
+
+    if (sessions.length === 0) {
+        downloadsTbody.innerHTML = `
+            <tr>
+                <td colspan="4" style="text-align:center;padding:3rem 1rem;color:var(--text-muted);">
+                    <i class="fa-solid fa-folder-open" style="font-size:2.5rem;margin-bottom:0.8rem;opacity:0.4;display:block;"></i>
+                    No research dossiers generated yet. Start a new research query to build your library!
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    downloadsTbody.innerHTML = "";
+    sessions.forEach(s => {
+        const tr = document.createElement("tr");
+        const dateStr = s.created_at ? new Date(s.created_at).toLocaleDateString(undefined, {
+            month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'
+        }) : "—";
+
+        const isReady = s.status === "completed" || s.has_report;
+
+        tr.innerHTML = `
+            <td>
+                <div class="dossier-topic-title">
+                    <i class="fa-solid fa-file-lines" style="color:var(--primary);"></i>
+                    <span title="${s.topic}">${s.topic}</span>
+                </div>
+            </td>
+            <td style="color:var(--text-muted);font-size:0.82rem;">${dateStr}</td>
+            <td>
+                <span class="role-tag ${isReady ? 'user' : 'admin'}">${s.status}</span>
+            </td>
+            <td>
+                <div class="dl-action-btns">
+                    <button class="btn-dl-action" data-action="view" data-id="${s.id}" title="Read full dossier on screen">
+                        <i class="fa-solid fa-eye"></i> View
+                    </button>
+                    ${isReady ? `
+                    <button class="btn-dl-action primary" data-action="download-md" data-id="${s.id}" data-topic="${encodeURIComponent(s.topic)}" title="Download .md file directly to PC">
+                        <i class="fa-solid fa-download"></i> .MD
+                    </button>
+                    <button class="btn-dl-action" data-action="print-pdf" data-id="${s.id}" title="Export as PDF">
+                        <i class="fa-solid fa-file-pdf"></i> PDF
+                    </button>
+                    ` : `
+                    <span style="font-size:0.75rem;color:var(--text-muted);">In progress...</span>
+                    `}
+                </div>
+            </td>
+        `;
+
+        // Wire click handlers
+        const btnView = tr.querySelector('[data-action="view"]');
+        if (btnView) {
+            btnView.addEventListener("click", () => loadPostgresSession(s.id));
+        }
+
+        const btnMd = tr.querySelector('[data-action="download-md"]');
+        if (btnMd) {
+            btnMd.addEventListener("click", () => downloadSessionById(s.id, s.topic));
+        }
+
+        const btnPdf = tr.querySelector('[data-action="print-pdf"]');
+        if (btnPdf) {
+            btnPdf.addEventListener("click", async () => {
+                await loadPostgresSession(s.id);
+                setTimeout(() => window.print(), 400);
+            });
+        }
+
+        downloadsTbody.appendChild(tr);
+    });
+}
+
+function filterDownloadsList(keyword) {
+    if (!userDossiersCache) return;
+    const q = (keyword || "").trim().toLowerCase();
+    if (!q) {
+        renderDownloadsTable(userDossiersCache);
+        return;
+    }
+    const filtered = userDossiersCache.filter(s => (s.topic || "").toLowerCase().includes(q));
+    renderDownloadsTable(filtered);
 }
 
 function setTimelineState(nodeName, state) {

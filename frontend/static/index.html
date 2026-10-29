@@ -11,7 +11,7 @@
     <!-- Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="/static/styles.css?v=3.1">
+    <link rel="stylesheet" href="/static/styles.css?v=3.4">
     <!-- Marked.js (Markdown renderer) -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
@@ -27,6 +27,15 @@
                 </div>
                 <button class="btn-sidebar-collapse" id="btn-sidebar-collapse" title="Collapse Sidebar">
                     <i class="fa-solid fa-chevron-left"></i>
+                </button>
+            </div>
+
+            <div class="sidebar-nav-actions">
+                <button class="btn-sidebar-nav active" id="btn-sidebar-nav-search">
+                    <i class="fa-solid fa-compass"></i> &nbsp;New Research
+                </button>
+                <button class="btn-sidebar-nav" id="btn-sidebar-nav-downloads">
+                    <i class="fa-solid fa-box-archive"></i> &nbsp;My Downloads
                 </button>
             </div>
             
@@ -193,6 +202,9 @@
                         <button class="btn-action-tool" id="btn-copy-markdown" title="Copy markdown to clipboard">
                             <i class="fa-solid fa-copy"></i> Copy Markdown
                         </button>
+                        <button class="btn-action-tool primary" id="btn-download-md" title="Download markdown file to PC">
+                            <i class="fa-solid fa-download"></i> Download .MD
+                        </button>
                         <button class="btn-action-tool" id="btn-print" title="Print or save as PDF">
                             <i class="fa-solid fa-file-pdf"></i> Download PDF
                         </button>
@@ -221,6 +233,72 @@
                         <!-- Rendered markdown goes here -->
                     </div>
                 </article>
+            </section>
+
+            <!-- VIEW 4: MY DOWNLOADS & RESEARCH LIBRARY -->
+            <section class="view-panel hidden" id="view-downloads">
+                <div class="downloads-hero">
+                    <div class="downloads-hero-top">
+                        <button class="btn-secondary btn-back-dashboard" id="btn-back-from-downloads">
+                            <i class="fa-solid fa-arrow-left"></i> &nbsp;Back to Research
+                        </button>
+                        <div class="downloads-quick-search">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <input type="text" id="downloads-search-input" placeholder="Search your dossiers...">
+                        </div>
+                    </div>
+                    <div class="downloads-heading-row">
+                        <div class="home-eyebrow"><i class="fa-solid fa-box-archive"></i> User Downloads &amp; Library</div>
+                        <h1 class="downloads-title">My Research Library</h1>
+                        <p class="downloads-subtitle">All academic dossiers and exportable reports generated for your account.</p>
+                    </div>
+                </div>
+
+                <div class="downloads-stats-bar">
+                    <div class="dl-stat-card">
+                        <div class="dl-stat-icon"><i class="fa-solid fa-book-bookmark"></i></div>
+                        <div class="dl-stat-info">
+                            <span class="dl-stat-num" id="dl-stat-count">0</span>
+                            <span class="dl-stat-label">Total Dossiers</span>
+                        </div>
+                    </div>
+                    <div class="dl-stat-card">
+                        <div class="dl-stat-icon completed"><i class="fa-solid fa-circle-check"></i></div>
+                        <div class="dl-stat-info">
+                            <span class="dl-stat-num" id="dl-stat-completed">0</span>
+                            <span class="dl-stat-label">Completed Syntheses</span>
+                        </div>
+                    </div>
+                    <div class="dl-stat-card">
+                        <div class="dl-stat-icon export"><i class="fa-solid fa-file-arrow-down"></i></div>
+                        <div class="dl-stat-info">
+                            <span class="dl-stat-num" id="dl-stat-ready">0</span>
+                            <span class="dl-stat-label">Exportable Files</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="downloads-table-card">
+                    <div class="downloads-table-wrapper">
+                        <table class="downloads-data-table">
+                            <thead>
+                                <tr>
+                                    <th>Dossier Topic</th>
+                                    <th>Date Created</th>
+                                    <th>Status</th>
+                                    <th style="text-align: right; padding-right: 1.5rem;">Download &amp; Export Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="downloads-tbody">
+                                <tr>
+                                    <td colspan="4" class="table-loading">
+                                        <i class="fa-solid fa-circle-notch fa-spin"></i> Loading your dossiers...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </section>
         </main>
     </div>
@@ -369,6 +447,6 @@
     </div>
 
     <!-- Main WebApp JS -->
-    <script src="/static/app.js?v=3.2"></script>
+    <script src="/static/app.js?v=3.4"></script>
 </body>
 </html>

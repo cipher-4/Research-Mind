@@ -22,7 +22,7 @@ import core.config  # Load environment variables (.env) before anything else
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Depends, Header, Query
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -60,6 +60,12 @@ def read_login():
 @app.get("/app")
 def read_app():
     """Serves the main research dashboard."""
+    return FileResponse("frontend/static/index.html")
+
+
+@app.get("/downloads")
+def read_downloads():
+    """Serves the user downloads and dossier library page."""
     return FileResponse("frontend/static/index.html")
 
 
@@ -239,6 +245,36 @@ def get_session_detail(
             for f in session.findings
         ]
     }
+
+
+@app.get("/api/user/sessions/{session_id}/download")
+def download_session_markdown(
+    session_id: str,
+    user: User = Depends(get_authenticated_user),
+    db: Session = Depends(get_db)
+):
+    """Directly downloads the synthesized dossier report as a markdown attachment."""
+    try:
+        s_uuid = uuid.UUID(session_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid session ID")
+
+    query = db.query(ResearchSession).filter(ResearchSession.id == s_uuid)
+    if user.role != "admin":
+        query = query.filter(ResearchSession.user_id == user.id)
+
+    session = query.first()
+    if not session or not session.synthesized_report:
+        raise HTTPException(status_code=404, detail="Dossier report not found or empty")
+
+    clean_title = re.sub(r'[^a-zA-Z0-9_\- ]+', '', session.topic).strip().replace(" ", "_")[:50]
+    filename = f"ResearchDossier_{clean_title}.md"
+
+    return Response(
+        content=session.synthesized_report.encode("utf-8"),
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
 
 
 # ──────────────────────────────────────────────
